@@ -1,0 +1,337 @@
+#define N 2
+#define max_loss 2
+bit init_data[N*4];
+mtype = {ack}
+
+proctype procA(byte my_id, previous_id; chan AtoCh, from_previous, to_receiver, From_B)
+{
+	bit my_code[N];
+	byte i=0;
+	bit previous_code[N];
+	bit xprevious_code[N];
+	bit R[N*4];
+	bit RT[N];
+	byte lost=0;
+
+	do
+	:: i<N -> my_code[i] = init_data[my_id*N+i] -> i++
+	:: i==N -> break
+	od;
+	
+	byte q=0;
+	do
+	:: q<N -> R[my_id*N+q]= my_code[q] -> q++
+	:: q==N -> break
+	od;
+	
+	byte kk=1;
+	AtoCh!my_code[0];
+	do
+	:: From_B?ack->AtoCh!my_code[kk]->kk++
+	:: kk==N -> From_B -> break
+	:: timeout -> AtoCh!my_code[kk-1]
+	od;
+	
+	byte k=0;
+	do
+	::k<N -> from_previous?previous_code[k] -> k++
+	::k==N-> break
+	od;
+	
+	byte e=0;
+	do
+	:: e<N -> R[previous_id*N+e]=previous_code[e] -> e++  //edo to a xerei a kai d
+	:: e==N -> break
+	od;
+	
+	byte p=1;
+	AtoCh!previous_code[0];
+	do
+	:: From_B?ack -> AtoCh!previous_code[p] ->p++  //o a steleni d ston b
+	:: p==N -> From_B -> break
+	:: timeout -> AtoCh!previous_code[p-1]
+	od;
+	
+	byte pp=0;
+	do
+	::pp<N -> from_previous?xprevious_code[pp] ->pp++ // o a lamvani c
+	::pp==N -> break
+	od;
+	
+	byte l=0;
+	do
+	:: l<N ->R[(previous_id-1)*N + l] = xprevious_code[l] -> l++ //apothikeyei c
+	:: l==N -> break
+	od;
+	
+	byte u=1;
+	AtoCh!xprevious_code[0];
+	do
+	:: From_B?ack -> AtoCh!xprevious_code[u] -> u++ // o a stelnei c ston b
+	:: u==N -> From_B -> break
+	:: timeout -> AtoCh!xprevious_code[u-1]
+	od;
+	
+	byte uu=0;
+	do
+	:: uu<N -> from_previous?previous_code[uu] -> uu++ //o a lamvani b
+	:: uu==N -> break
+	od;
+	
+	byte t=0;
+	do
+	:: t<N -> R[(previous_id-2)*N +t] = previous_code[t] -> t++ // o a apothikevi b
+	:: t==N -> break
+	od;
+	
+	byte h=0;
+	do
+	:: h<N -> RT[h]= ((R[h] && R[h+2]) || (R[h+4] && R[h+6])) -> h++ //ipologizi R
+	:: h==N -> break
+	od;
+atomic{
+	byte g=0;
+	do
+	:: g<N -> to_receiver!RT[g] -> g++ //stelnei sto chanel gia ton receiver //stelnei R
+	:: g==N -> break
+	od;
+}
+}
+proctype procCh(chan in,out)
+{
+	bit d;
+	byte lost=0;
+	end3:	
+		do
+		:: in?d ->
+			if
+			::(lost<=max_loss)-> progress1: out!d
+			::(lost<max_loss)->lost++
+			fi
+		od
+	}
+proctype procB(byte my_id,previous_id; chan to_next,from_Ch,to_receiver,to_A)
+{
+bit my_code[N]; byte i=0;
+	//  den xrisimeyei ??   bit next_code[N];
+	bit previous_code[N];
+	bit xprevious_code[N];
+	bit R[N*4];
+	bit RT[N];
+	
+	do
+	::i<N -> my_code[i]=init_data[my_id*N + i] -> i++ //initialize ton pinaka t
+	:: i==N -> break
+	od;
+	
+	byte q=0;
+	do
+	:: q<N -> R[my_id*N+q]= my_code[q] -> q++  //apothikevi b
+	:: q==N -> break
+	od;
+	
+	byte kk=0;
+	do
+	::kk<N -> to_next!my_code[kk]->kk++  //stelnei b ston c
+	::kk==N-> break
+	od;
+	
+	byte k=0;
+	do
+	::k<N ->from_Ch?previous_code[k] -> k++ -> to_A!ack   //lamvani a kai stelnei ston a oti elave
+	::k==N -> break
+	od;
+	
+	byte e=0;
+	do
+	:: e<N -> R[previous_id*N+e]=previous_code[e] -> e++ //apothikevi a
+	:: e==N -> break
+	od;
+	
+	byte p=0;
+	do
+	:: p<N -> to_next!previous_code[p] ->p++ //stelnei a ston c
+	:: p==N -> break
+	od;
+	
+	byte pp=0;
+	do
+	:: pp<N -> from_Ch?xprevious_code[pp] -> pp++ -> to_A!ack //lamvani D apo ton a
+	:: pp==N -> break
+	od;
+	
+	byte l=0;
+	do
+	:: l<N -> R[3*N+1]=xprevious_code[l] -> l++  //apothikevi D
+	:: l==N -> break
+	od
+	
+	byte u=0;
+	do
+	:: u<N -> to_next!xprevious_code[u] -> u++  //stelnei D ston C
+	:: u==N -> break
+	od;
+	
+	byte uu=0;
+	do
+	:: uu<N -> from_Ch?previous_code[uu] -> uu++ -> to_A!ack //lamvani C kai stelnei ack ston A
+	:: uu==N -> break
+	od;
+	
+	byte t=0;
+	do
+	:: t<N -> R[2*N+t]=previous_code[t] -> t++ //apothikevi C
+	:: t==N -> break
+	od
+	
+	byte h=0;
+	do
+	:: h<N -> RT[h]= ((R[h] && R[h+2]) || (R[h+4] && R[h+6])) -> h++
+	:: h==N -> break
+	od;
+	atomic{
+		byte g=0;
+		do
+		:: g<N -> to_receiver!RT[g] -> g++
+		:: g==N -> break
+		od;
+	}
+	
+}
+proctype proc (byte my_id,previous_id; chan to_next,from_previous,to_receiver)
+	{
+		bit my_code[N]; byte i=0;
+		bit next_code[N];
+		bit previous_code[N];
+		bit xprevious_code[N];
+		bit R[N*4];
+		bit RT[N];
+		
+		do
+		::i<N -> my_code[i]=init_data[my_id*N + i] -> i++ //initialize array
+		:: i==N -> break
+		od;
+		
+		byte q=0;
+		do
+		:: q<N -> R[my_id*N+q]= my_code[q] -> q++	//store array
+		:: q==N -> break
+		od;
+		
+		byte kk=0;
+		do
+		::kk<N -> to_next!my_code[kk]->kk++			// send array to next
+		::kk==N-> break
+		od;
+		
+		byte k=0;
+		do
+		::k<N -> from_previous?previous_code[k] -> k++		//receive array from previous
+		::k==N-> break
+		od;
+		
+		byte e=0;
+		do
+		:: e<N -> R[previous_id*N+e]=previous_code[e] -> e++	//store previous array
+		:: e==N -> break
+		od;
+		
+		byte p=0;
+		do
+		:: p<N -> to_next!previous_code[p] ->p++		//send previous to next
+		::p==N -> break
+		od;
+		
+		byte pp=0;
+		do
+		::pp<N -> from_previous?xprevious_code[pp] ->pp++	//receive xprevi from previous
+		::pp==N -> break
+		od;
+		
+		byte l=0;
+		do
+		:: l<N -> R[(previous_id-1)*N + l] = xprevious_code[l] -> l++ //store xprevious to correct position	
+		:: l==N -> break
+		od;
+		
+		byte u=0;
+		do
+		:: u<N -> to_next!xprevious_code[u] -> u++	//send xprevious to next
+		:: u==N -> break
+		od;
+		
+		byte uu=0;
+		do
+		:: uu<N -> from_previous?previous_code[uu] -> uu++	// receive the last array
+		:: uu==N -> break
+		od;
+		
+		byte t=0;
+		do
+		:: t<N ->
+			if
+			:: my_id== 2 -> R[3*N+t] = previous_code[t] -> t++
+			:: my_id== 3 -> R[(previous_id-2)*N +t] = previous_code[t] -> t++	//store last array
+			fi
+		:: t==N -> break
+		od;
+		
+		byte h=0;
+		do
+		:: h<N -> RT[h]= ((R[h] && R[h+2]) || (R[h+4] && R[h+6])) -> h++	//calculate R
+		:: h==N -> break
+		od;
+	atomic{
+		byte g=0;
+		do
+		:: g<N -> to_receiver!RT[g] -> g++	//send R to receiver
+		:: g==N -> break
+		od;
+	}
+		
+	}
+proctype receiver(chan from_A,from_B,from_C,from_D)
+{bit result[N];
+	byte j=1;
+	atomic{
+	if
+	::from_A?result[0]->do
+			::j<N -> from_A?result[j]->j++
+			::j==N-> break
+			od
+	::from_B?result[0]->do
+			::j<N -> from_B?result[j]->j++
+			::j==N-> break
+			od
+	::from_C?result[0]->	do
+			::j<N -> from_C?result[j]->j++
+			::j==N-> break
+			od
+	::from_D?result[0]-> do
+			::j<N -> from_D?result[j]->j++
+			::j==N-> break
+			od
+	fi
+	}
+	byte f=0;
+	do
+	:: f<N -> assert(result[f]== ((init_data[f] && init_data[f+2]) || (init_data[f+4] && init_data[f+6]))) -> f++
+	:: f=N -> break
+	od
+}
+
+init{
+	chan AtoCh=[N] of {bit}; chan ChtoB=[N] of {bit}; chan AB=[N] of {mtype};
+	chan BtoC=[N] of {bit}; chan CtoD=[N] of {bit};
+	chan DtoA=[N] of {bit}; chan AtoR=[N] of {bit};
+	chan BtoR=[N] of {bit}; chan CtoR=[N] of {bit};
+	chan DtoR=[N] of {bit};
+atomic{
+	init_data[0]=1; init_data[1]=0; init_data[2]=1; init_data[3]=1;
+	init_data[4]=1; init_data[5]=0; init_data[6]=1; init_data[7]=0;
+	
+	run procA(0,3,AtoCh,DtoA,AtoR,AB); run procCh(AtoCh,ChtoB);
+	run procB(1,0,BtoC,ChtoB,BtoR,AB); run proc(2,1,CtoD,BtoC,CtoR);
+	run proc(3,2,DtoA,CtoD,DtoR); run receiver(AtoR,BtoR,CtoR,DtoR)
+	}
+}
